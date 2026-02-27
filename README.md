@@ -86,7 +86,7 @@ graph TD
         WIFI["ESP32 Built-in Wi-Fi\nCloud Data Publishing and Remote Recharge"]
     end
 
-    subgraph Proc["Processing and Control Layer — ESP32"]
+    subgraph Proc["Processing and Control Layer - ESP32"]
         EM["Energy Measurement\n(PZEM-004T via UART)"]
         BE["Billing Engine\n(Credit Logic)"]
         RC["Relay Controller\n(Load ON/OFF)"]
@@ -98,7 +98,7 @@ graph TD
     subgraph Sense["Sensing and Actuation Layer"]
         PZEM["PZEM-004T Energy Module"]
         RL["Relay Module"]
-        LCD["1.8\" TFT LCD Display (SPI)"]
+        LCD["1.8-inch TFT LCD Display (SPI)"]
         PB["Push Button"]
     end
 
@@ -183,12 +183,12 @@ The firmware is written in embedded C++ using the Arduino framework and follows 
 
 ```mermaid
 graph TD
-    AL["Application Layer\nSmartEnergyMeter.ino \u2014 Main Loop Orchestration"]
-    BL["Business Logic Layer\nbilling.cpp \u00b7 token_validator.cpp"]
+    AL["Application Layer\nSmartEnergyMeter.ino - Main Loop Orchestration"]
+    BL["Business Logic Layer\nbilling.cpp / token_validator.cpp"]
     SL["Service Layer\nwifi_module.cpp"]
-    HAL["Hardware Abstraction Layer (HAL)\npzem_module.cpp \u00b7 tft_display.cpp \u00b7 relay_control.cpp\nbutton_handler.cpp \u00b7 nvs_storage.cpp"]
-    LIB["Arduino Framework / Third-Party Libraries\nWiFi.h \u00b7 Preferences.h \u00b7 TFT_eSPI.h \u00b7 PZEM004Tv30.h \u00b7 HardwareSerial.h"]
-    HW["ESP32 Hardware\nGPIO \u00b7 UART \u00b7 SPI \u00b7 Wi-Fi \u00b7 NVS \u00b7 Internal RTC \u00b7 Timers"]
+    HAL["Hardware Abstraction Layer HAL\npzem_module.cpp / tft_display.cpp / relay_control.cpp\nbutton_handler.cpp / nvs_storage.cpp"]
+    LIB["Arduino Framework / Third-Party Libraries\nWiFi.h / Preferences.h / TFT_eSPI.h / PZEM004Tv30.h / HardwareSerial.h"]
+    HW["ESP32 Hardware\nGPIO / UART / SPI / Wi-Fi / NVS / Internal RTC / Timers"]
 
     AL --> BL
     BL --> SL
