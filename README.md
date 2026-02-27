@@ -1,7 +1,7 @@
 # Design and Implementation of an Advanced IoT-Based Smart Prepaid Energy Meter
  
 **Simulation Tool:** Proteus Design Suite 8  
-**Microcontroller Platform:** Arduino Uno (ATmega328P)  
+**Microcontroller Platform:** ESP32  
 **Target Market:** Nigerian Electricity Distribution Sector  
 **Date:** February 2026  
 **Repository:** [https://github.com/thetruesammyjay/Iot-Based-Smart-Prepaid-Energy-Meter-Proteus](https://github.com/thetruesammyjay/Iot-Based-Smart-Prepaid-Energy-Meter-Proteus)  
@@ -65,9 +65,9 @@ The specific objectives of this project are as follows:
 1. To design a microcontroller-based circuit capable of measuring real-time voltage, current, active power, and cumulative energy consumption (kWh).
 2. To implement a prepaid billing engine that deducts credit in proportion to energy consumed at a configurable tariff rate.
 3. To control a relay actuator that automatically disconnects the consumer load when credit reaches zero and reconnects it upon successful recharge.
-4. To develop a token-based recharge mechanism compliant with Standard Transfer Specification (STS) principles, deliverable via SMS or IoT dashboard.
-5. To integrate a GSM module (SIM800L) for SMS-based token delivery and a Wi-Fi module (ESP8266) for real-time data publishing to an IoT platform.
-6. To persist meter state (credit balance, cumulative consumption) in non-volatile EEPROM storage, ensuring data retention across power cycles.
+4. To develop a token-based recharge mechanism compliant with Standard Transfer Specification (STS) principles, deliverable via push button entry or an IoT dashboard.
+5. To leverage the ESP32 built-in Wi-Fi module for real-time data publishing to an IoT platform and remote recharge command reception.
+6. To persist meter state (credit balance, cumulative consumption) in the ESP32 Non-Volatile Storage (NVS), ensuring data retention across power cycles.
 7. To simulate the complete hardware and firmware stack using Proteus Design Suite 8 to validate system behaviour before physical implementation.
 
 ---
@@ -83,42 +83,39 @@ graph TD
     end
 
     subgraph Comm["Communication Layer"]
-        GSM["GSM Module — SIM800L\nSMS Token Delivery and Alerts"]
-        WIFI["Wi-Fi Module — ESP8266\nCloud Data Publishing"]
+        WIFI["ESP32 Built-in Wi-Fi\nCloud Data Publishing and Remote Recharge"]
     end
 
-    subgraph Proc["Processing and Control Layer — ATmega328P (Arduino Uno)"]
-        EM["Energy Measurement\n(ADC Sampling)"]
+    subgraph Proc["Processing and Control Layer — ESP32"]
+        EM["Energy Measurement\n(PZEM-004T via UART)"]
         BE["Billing Engine\n(Credit Logic)"]
         RC["Relay Controller\n(Load ON/OFF)"]
         TV["Token Validator\n(STS Decode)"]
-        ES["EEPROM Storage\n(Persistence)"]
-        RTCM["RTC Module (I2C)\n(Timestamping)"]
+        NVS["NVS Storage\n(Preferences)"]
+        BTN["Button Handler\n(User Input)"]
     end
 
     subgraph Sense["Sensing and Actuation Layer"]
-        ACS["ACS712 Current Sensor"]
-        VD["Voltage Divider"]
+        PZEM["PZEM-004T Energy Module"]
         RL["Relay Module"]
-        LCD["16x2 LCD Display (I2C)"]
-        KP["4x4 Matrix Keypad"]
-        DS["DS3231 RTC"]
+        LCD["1.8\" TFT LCD Display (SPI)"]
+        PB["Push Button"]
     end
 
-    Cloud -->|"HTTP / MQTT over Wi-Fi (ESP8266)"| Comm
-    Comm -->|"UART / SoftwareSerial"| Proc
-    Proc -->|"GPIO / I2C / ADC"| Sense
+    Cloud <-->|"HTTP / MQTT over Wi-Fi"| Comm
+    Comm <-->|"ESP32 Built-in TCP/IP Stack"| Proc
+    Proc -->|"GPIO / UART / SPI"| Sense
 ```
 
 ### Data Flow Summary
 
-1. The ACS712 current sensor and resistive voltage divider feed analog signals to the ATmega328P ADC inputs.
-2. The firmware computes instantaneous power and integrates it over time to yield energy in kWh.
-3. The billing engine converts kWh to monetary cost and decrements the stored credit balance.
+1. The PZEM-004T energy measurement module continuously measures AC voltage, current, active power, and cumulative energy, delivering pre-computed digital values to the ESP32 via UART/Modbus.
+2. The firmware reads these values at a configurable sampling interval and feeds them into the billing engine.
+3. The billing engine converts kWh to monetary cost and decrements the stored credit balance in ESP32 NVS.
 4. When credit reaches zero, the relay control module opens the relay, disconnecting the load.
-5. A consumer enters a recharge token via the 4x4 keypad. The token validator verifies the token and credits the balance.
-6. Alternatively, a token is received by the GSM module via SMS or pushed by the IoT dashboard over Wi-Fi.
-7. All operational data — voltage, current, power, balance — is displayed on the 16x2 LCD and published to the IoT cloud.
+5. A consumer presses the push button to navigate the recharge menu on the TFT LCD. The token validator verifies the entered token and credits the balance.
+6. Alternatively, a token is pushed by the IoT dashboard over the ESP32 built-in Wi-Fi connection.
+7. All operational data — voltage, current, power, balance — is displayed on the 1.8-inch TFT LCD and published to the IoT cloud.
 
 ---
 
@@ -130,32 +127,30 @@ The following components constitute the physical (and simulated) hardware of the
 
 | Component | Model | Justification |
 |---|---|---|
-| Microcontroller | ATmega328P (Arduino Uno) | Widely supported, sufficient ADC channels, I2C/UART support, Arduino IDE compatibility |
+| Microcontroller | ESP32 | Dual-core 32-bit processor, built-in Wi-Fi/BT, 4MB flash, 520KB SRAM, multiple UART/SPI/I2C, Arduino IDE compatible |
 
 ### 5.2 Sensing Components
 
 | Component | Model | Role |
 |---|---|---|
-| Current Sensor | ACS712-30A | Hall-effect current measurement; outputs analog voltage proportional to current |
-| Voltage Sensor | Resistive Voltage Divider (R1=30kΩ, R2=7.5kΩ) | Scales 230V AC mains voltage down to 0–5V ADC-compatible range |
+| Energy Measurement Module | PZEM-004T | Dedicated AC energy meter module; measures voltage, current, power, energy, frequency, and power factor; communicates via UART/Modbus |
 
-> Note: In the Proteus simulation, the ACS712 is modelled using a voltage-controlled voltage source (VCVS) with a sensitivity of 66 mV/A. The AC mains supply is simulated using a sinusoidal voltage generator.
+> Note: The PZEM-004T handles all AC signal conditioning and measurement internally. It eliminates the need for discrete current sensors, voltage dividers, and firmware-level RMS computation. In the Proteus simulation, the PZEM-004T is modelled via a Virtual Terminal component communicating over a hardware UART channel.
 
 ### 5.3 Display and Input
 
 | Component | Model | Role |
 |---|---|---|
-| LCD Display | 16x2 LCD with PCF8574 I2C expander | Real-time display of voltage, current, power, balance, and alerts |
-| Keypad | 4x4 Matrix Keypad | Token entry, PIN input, menu navigation |
+| LCD Display | 1.8-inch TFT LCD (ST7735/ILI9163 driver) | Colour graphical display of voltage, current, power, credit balance, and alerts via SPI |
+| Input | Push Button | User interaction for recharge menu navigation and token confirmation |
 
 ### 5.4 Communication Modules
 
 | Component | Model | Interface | Role |
 |---|---|---|---|
-| GSM Module | SIM800L | UART (SoftwareSerial) | SMS token reception and low-balance alert transmission |
-| Wi-Fi Module | ESP8266 (ESP-01) | UART (SoftwareSerial) | IoT dashboard data publishing via HTTP/MQTT |
+| Wi-Fi Module | ESP32 Built-in Wi-Fi (802.11 b/g/n) | Native TCP/IP stack | IoT dashboard data publishing via HTTP/MQTT; remote recharge command reception |
 
-> Note: In Proteus simulation, GSM and Wi-Fi modules are modelled as virtual UART terminals. A Virtual Terminal component is connected to the ATmega328P software serial pins to simulate AT command exchanges.
+> Note: The ESP32's built-in Wi-Fi eliminates the need for a separate communication module. In Proteus simulation, the Wi-Fi interface is modelled as a Virtual Terminal component to validate firmware communication logic.
 
 ### 5.5 Power Control
 
@@ -168,10 +163,10 @@ The following components constitute the physical (and simulated) hardware of the
 
 | Component | Model | Interface | Role |
 |---|---|---|---|
-| RTC Module | DS3231 | I2C | Accurate timestamping for consumption logs and time-of-use tariffs |
-| EEPROM | AT24C256 (External) | I2C | Persistent storage of credit balance and cumulative kWh consumption |
+| NVS Storage | ESP32 Non-Volatile Storage (Preferences library) | Internal SPI flash | Persistent storage of credit balance, cumulative kWh, relay state, and used token records across power cycles |
+| RTC | ESP32 Internal RTC (NTP-synced) | Built-in | Timekeeping for consumption log timestamping; synchronised over Wi-Fi using NTP |
 
-> The ATmega328P also contains 1KB of internal EEPROM; the external AT24C256 provides 256KB for extended logging capacity.
+> The ESP32's Preferences library provides key-value NVS storage backed by internal SPI flash. No external EEPROM or RTC module is required.
 
 ### 5.7 Power Supply
 
@@ -188,12 +183,12 @@ The firmware is written in embedded C++ using the Arduino framework and follows 
 
 ```mermaid
 graph TD
-    AL["Application Layer\nSmartEnergyMeter.ino — Main Loop Orchestration"]
-    BL["Business Logic Layer\nbilling.cpp · token_validator.cpp"]
-    SL["Service Layer\ngsm_module.cpp · wifi_module.cpp · rtc_module.cpp"]
-    HAL["Hardware Abstraction Layer (HAL)\nenergy_measurement.cpp · lcd_driver.cpp · relay_control.cpp\nkeypad_handler.cpp · eeprom_storage.cpp"]
-    LIB["Arduino Framework / Third-Party Libraries\nWire.h · SoftwareSerial.h · EEPROM.h · LiquidCrystal_I2C.h · Keypad.h · RTClib.h"]
-    HW["ATmega328P Hardware\nADC · GPIO · UART · I2C · SPI · Timers"]
+    AL["Application Layer\nSmartEnergyMeter.ino \u2014 Main Loop Orchestration"]
+    BL["Business Logic Layer\nbilling.cpp \u00b7 token_validator.cpp"]
+    SL["Service Layer\nwifi_module.cpp"]
+    HAL["Hardware Abstraction Layer (HAL)\npzem_module.cpp \u00b7 tft_display.cpp \u00b7 relay_control.cpp\nbutton_handler.cpp \u00b7 nvs_storage.cpp"]
+    LIB["Arduino Framework / Third-Party Libraries\nWiFi.h \u00b7 Preferences.h \u00b7 TFT_eSPI.h \u00b7 PZEM004Tv30.h \u00b7 HardwareSerial.h"]
+    HW["ESP32 Hardware\nGPIO \u00b7 UART \u00b7 SPI \u00b7 Wi-Fi \u00b7 NVS \u00b7 Internal RTC \u00b7 Timers"]
 
     AL --> BL
     BL --> SL
@@ -207,32 +202,33 @@ graph TD
 - **Separation of Concerns:** Each peripheral is encapsulated in its own module with a defined header interface, preventing tight coupling between subsystems.
 - **Single Responsibility Principle:** Each `.cpp` file is responsible for exactly one system concern.
 - **Non-Blocking Execution:** The main loop uses time-based scheduling (via `millis()`) rather than `delay()` to ensure concurrent operation of display refresh, ADC sampling, and communication polling.
-- **Defensive Programming:** All EEPROM read operations validate stored data against known sentinel values to detect first-boot or corrupted state conditions.
+- **Defensive Programming:** All NVS read operations validate stored data against known sentinel values to detect first-boot or corrupted state conditions.
 
 ---
 
 ## 7. Core Functional Modules
 
-### 7.1 Energy Measurement Module (`energy_measurement`)
+### 7.1 Energy Measurement Module (`pzem_module`)
 
-This module performs real-time sampling of the AC voltage and current waveforms using the ATmega328P ADC (10-bit, 5V reference).
+This module manages communication with the PZEM-004T dedicated energy measurement module via UART using the Modbus RTU protocol.
 
-**Voltage Measurement:**
-The AC mains voltage is stepped down through a resistive voltage divider and fed into an analog input pin. The ADC samples the waveform, and the Root Mean Square (RMS) voltage is calculated over a full waveform cycle using:
+**PZEM-004T Measurement Approach:**
+Unlike ADC-based approaches that require firmware-level RMS computation, the PZEM-004T handles all AC signal conditioning and measurement internally. The ESP32 sends a Modbus RTU read request over UART, and the PZEM-004T responds with pre-computed values for:
 
-$$V_{RMS} = \sqrt{\frac{1}{N} \sum_{i=1}^{N} v_i^2}$$
+- **Voltage (V RMS):** Line voltage in the range 80–260V
+- **Current (A RMS):** Load current in the range 0–100A
+- **Active Power (W):** Instantaneous real power delivered to the load
+- **Cumulative Energy (kWh):** Total energy consumed since last reset
+- **Frequency (Hz):** Mains supply frequency
+- **Power Factor:** Ratio of active to apparent power
 
-where $v_i$ are the instantaneous sampled voltage values and $N$ is the number of samples per cycle.
+**Energy and Power Relationships:**
 
-**Current Measurement:**
-The ACS712-30A sensor outputs a DC-biased analog voltage (2.5V at zero current, ±0.066V per ampere for the 30A variant). The firmware subtracts the DC offset and computes the RMS current:
+Active power delivered to the load:
 
-$$I_{RMS} = \sqrt{\frac{1}{N} \sum_{i=1}^{N} i_i^2}$$
+$$P_{active} = V_{RMS} \times I_{RMS} \times PF$$
 
-**Power and Energy:**
-Active (real) power is calculated assuming a resistive load:
-
-$$P_{active} = V_{RMS} \times I_{RMS}$$
+where $PF$ is the power factor reported by the PZEM-004T.
 
 Cumulative energy in kilowatt-hours:
 
@@ -246,7 +242,7 @@ The billing engine converts energy consumption to a monetary cost and manages th
 
 - **Tariff Rate:** Configurable cost per kWh in Nigerian Naira (e.g., ₦68.00/kWh for NERC Band B residential), stored in firmware constants and adjustable via EEPROM. The system supports the NERC Multi-Year Tariff Order (MYTO) Band A–E structure by allowing the tariff rate to be updated remotely via the IoT dashboard.
 - **Credit Deduction:** At each billing interval (configurable, default: every 1 second), the incremental energy consumed is costed and deducted from the stored balance.
-- **Low-Balance Alert:** When the balance falls below a configurable threshold (e.g., ₦500.00), an alert is displayed on the LCD and an SMS is dispatched via the GSM module to the registered consumer phone number.
+- **Low-Balance Alert:** When the balance falls below a configurable threshold (e.g., ₦500.00), an alert is displayed on the TFT LCD and a notification is published to the IoT platform via the ESP32 built-in Wi-Fi module.
 - **Zero-Credit Cutoff:** When the balance reaches ₦0.00, the relay control module is invoked to disconnect the load.
 
 ### 7.3 Token Validator (`token_validator`)
@@ -255,7 +251,7 @@ The recharge token system is modelled on Standard Transfer Specification (STS) I
 
 - Tokens are 20-digit numeric codes generated by a utility authority and cryptographically bound to a specific meter serial number and credit value.
 - On token entry, the validator decodes the token, verifies the meter ID match, checks the one-time-use flag in EEPROM, and credits the decoded value to the balance.
-- Invalid or already-used tokens are rejected with an error message on the LCD.
+- Invalid or already-used tokens are rejected with an error message on the TFT LCD.
 
 > In the simulation context, tokens are pre-generated strings verified against a lookup table stored in program memory (PROGMEM), since full STS cryptographic implementation (DKGA04 algorithm) is beyond the scope of the Proteus simulation.
 
@@ -267,42 +263,35 @@ Manages the state of the relay that controls load connectivity:
 - `relay_off()` — de-energizes the relay coil, opening the circuit and disconnecting the load.
 - Relay state is stored in EEPROM to recover correctly after a power cycle.
 
-### 7.5 LCD Driver (`lcd_driver`)
+### 7.5 TFT Display Module (`tft_display`)
 
-Abstracts the 16x2 I2C LCD display into application-level rendering functions:
+Abstracts the 1.8-inch TFT LCD (SPI) into application-level rendering functions:
 
-- **Home Screen:** Displays real-time voltage (V), current (A), power (W), and remaining credit.
-- **Alert Screen:** Displays low-balance warning and estimated time remaining.
-- **Recharge Screen:** Prompts for token entry and confirms successful recharge.
-- **History Screen:** Displays the last recorded kWh reading and timestamp from the RTC.
+- **Home Screen:** Displays real-time voltage (V), current (A), power (W), and remaining credit balance with colour-coded indicators.
+- **Alert Screen:** Displays low-balance warning in red and estimated energy remaining.
+- **Recharge Screen:** Prompts for token confirmation via push button and confirms successful recharge.
+- **Status Screen:** Displays relay state, Wi-Fi connection status, and last IoT publish timestamp.
 
-### 7.6 Keypad Handler (`keypad_handler`)
+### 7.6 Push Button Handler (`button_handler`)
 
-Manages the 4x4 matrix keypad with software debouncing:
+Manages the push button input with software debouncing:
 
-- Collects 20-digit numeric token input character by character.
-- Supports a dedicated `#` confirm key and `*` cancel/clear key.
+- Detects short press and long press events to navigate the on-screen recharge menu.
+- Cycles through token digit entry on short press; confirms selection on long press.
 - Enforces a configurable lockout period after three consecutive failed token entries as a tamper deterrent.
 
-### 7.7 GSM Module (`gsm_module`)
+### 7.7 Wi-Fi Module (`wifi_module`)
 
-Communicates with the SIM800L via AT commands over a software serial interface:
+Utilises the ESP32's built-in Wi-Fi (802.11 b/g/n) via the native `WiFi.h` and `HTTPClient.h` libraries:
 
-- **Outbound:** Sends low-balance SMS alerts and power cutoff notifications to the registered consumer phone number.
-- **Inbound:** Polls for incoming SMS messages, extracts and forwards 20-digit token strings to the token validator module.
-- Key AT commands used: `AT+CMGF=1` (text mode), `AT+CMGS` (send SMS), `AT+CMGL="UNREAD"` (read incoming messages).
-
-### 7.8 Wi-Fi Module (`wifi_module`)
-
-Communicates with the ESP8266 (ESP-01) via AT commands over a second software serial interface:
-
-- Connects to a configured Wi-Fi SSID at startup.
-- Publishes energy readings and credit balance to an IoT platform (e.g., ThingSpeak) via HTTP GET requests at a configurable interval.
+- Connects to a configured Wi-Fi SSID at startup using credentials stored in NVS.
+- Publishes energy readings and credit balance to an IoT platform (e.g., ThingSpeak) via HTTP GET/POST requests at a configurable interval.
 - Receives recharge commands from the IoT dashboard web interface via HTTP polling or MQTT subscription.
+- No AT commands are required; the ESP32 handles the full TCP/IP stack natively.
 
-### 7.9 EEPROM Storage (`eeprom_storage`)
+### 7.8 NVS Storage (`nvs_storage`)
 
-Provides persistent key-value storage across power cycles:
+Provides persistent key-value storage across power cycles using the ESP32 Preferences library backed by internal SPI flash NVS partitions:
 
 | Key | Data | Size |
 |---|---|---|
@@ -312,16 +301,9 @@ Provides persistent key-value storage across power cycles:
 | `METER_ID` | Unique meter serial number (uint32_t) | 4 bytes |
 | `TOKEN_LOG` | Circular buffer of last 10 used token hashes | 80 bytes |
 | `TARIFF_RATE` | Cost per kWh (float) | 4 bytes |
+| `WIFI_SSID` | Configured Wi-Fi network name (string) | variable |
+| `WIFI_PASS` | Configured Wi-Fi password (string) | variable |
 
-### 7.10 RTC Module (`rtc_module`)
-
-Interfaces with the DS3231 via I2C to:
-
-- Stamp each EEPROM consumption log entry with the current date and time.
-- Support time-of-use (TOU) tariff logic, enabling peak and off-peak pricing based on the time of day.
-- Provide accurate elapsed-time calculation for the energy integration loop.
-
----
 
 ## 8. IoT Integration Design
 
@@ -352,14 +334,14 @@ The following data fields are transmitted to the IoT platform at each publish in
 | `power` | float | W | Active power |
 | `energy_kwh` | float | kWh | Cumulative energy |
 | `credit_balance` | float | Currency | Remaining balance |
-| `relay_state` | int | — | 1 = connected, 0 = disconnected |
-| `timestamp` | string | ISO 8601 | RTC-sourced timestamp |
+| `relay_state` | int | - | 1 = connected, 0 = disconnected |
+| `timestamp` | string | ISO 8601 | NTP-sourced timestamp from ESP32 internal RTC |
 
 ### 8.3 Remote Recharge via IoT Dashboard
 
 1. A utility operator generates a recharge token from the dashboard.
 2. The token is pushed to the IoT platform as a command payload.
-3. The ESP8266 module polls the platform and retrieves the pending command.
+3. The ESP32 built-in Wi-Fi module polls the platform and retrieves the pending command.
 4. The token string is forwarded to the token validator module over the internal serial bus.
 5. Upon successful validation, the balance is credited and the relay is engaged if previously disconnected.
 
@@ -400,21 +382,16 @@ Example: `1234 560000150000 7891`
 
 ### 10.1 Overview
 
-The Proteus simulation replicates the entire hardware system in a virtual environment. All signal interactions — ADC sampling, I2C communication, UART exchanges, relay switching, and LCD rendering — are fully functional within the simulation. No physical hardware is required to validate the system.
+The Proteus simulation replicates the entire hardware system in a virtual environment. All signal interactions - UART communication, SPI display rendering, relay switching, and TFT LCD output - are fully functional within the simulation. No physical hardware is required to validate the system.
 
 ### 10.2 Simulated Components and Their Proteus Equivalents
 
 | Physical Component | Proteus Component / Model | Library |
 |---|---|---|
-| Arduino Uno (ATmega328P) | `ARDUINO UNO R3` | Arduino library (built-in) |
-| ACS712 Current Sensor | `VCVS` (Voltage-Controlled Voltage Source) | ANALOGUE |
-| Voltage Divider | Resistors R1, R2 with sine wave generator | DEVICE |
-| 16x2 I2C LCD | `LM016L` with PCF8574 I2C expander model | Display |
-| 4x4 Matrix Keypad | `KEYPAD-SMALLCALC` | ACTIVE |
-| SIM800L GSM Module | `VIRTUAL TERMINAL` (UART terminal) | Virtual Instruments |
-| ESP8266 Wi-Fi Module | `VIRTUAL TERMINAL` (UART terminal) | Virtual Instruments |
-| DS3231 RTC | `DS1307` (functionally equivalent model) | ACTIVE |
-| AT24C256 EEPROM | `24C02` (scaled for simulation scope) | ACTIVE |
+| ESP32 | `ESP32` (or generic 32-bit MCU with UART/SPI GPIO) | ESP32 / custom model |
+| PZEM-004T Energy Module | `VIRTUAL TERMINAL` (UART terminal) | Virtual Instruments |
+| 1.8" TFT LCD (ST7735/ILI9163) | `SSD1306 OLED` or SPI display model (closest available) | Display / custom |
+| Push Button | `BUTTON` (generic push button) | ACTIVE |
 | 5V Relay Module | `RELAY` (generic coil-driven relay) | ACTIVE |
 | AC Load | Lamp or resistive load model | ACTIVE |
 | 230V AC Source | `VSINE` (AC voltage generator) | Generators |
@@ -423,39 +400,32 @@ The Proteus simulation replicates the entire hardware system in a virtual enviro
 
 The following approximations are made in the Proteus environment due to simulation limitations:
 
-1. **GSM / Wi-Fi Simulation:** Physical RF communication cannot be simulated in Proteus. The SIM800L and ESP8266 are replaced by Virtual Terminal components. AT command responses are pre-scripted using Proteus scripting or manually entered to simulate module responses during demonstration.
+1. **Wi-Fi Simulation:** Physical RF communication cannot be simulated in Proteus. The ESP32 built-in Wi-Fi is represented by a Virtual Terminal component. Network command sequences are pre-scripted or manually entered to simulate IoT publish/subscribe interactions during demonstration.
 
-2. **ACS712 Model:** The ACS712 does not exist natively in the Proteus library. It is modelled as a voltage-controlled voltage source (VCVS) with an appropriate gain to replicate the 66 mV/A sensitivity of the 30A variant.
+2. **PZEM-004T Model:** The PZEM-004T does not exist natively in the Proteus library. It is represented by a Virtual Terminal component configured at the appropriate UART baud rate, with Modbus RTU response frames pre-scripted to simulate energy measurement data delivery to the ESP32.
 
-3. **ADC Noise:** Real ADC noise and quantization effects present in physical hardware are absent from the ideal simulation environment. Firmware filtering algorithms (moving average) may appear more accurate in simulation than in practice.
+3. **TFT LCD Rendering:** The specific ST7735/ILI9163 TFT LCD driver may not be available natively in Proteus. A substitute SPI display model is used, or display output is validated through logic analyser probes on the SPI bus lines.
 
-4. **RTC Oscillator:** The DS1307 model in Proteus simulates timekeeping at simulation speed, not real-world speed. Time-dependent tests (e.g., TOU tariffs) must account for this by manually advancing the RTC register values.
-
-5. **EEPROM Wear:** Proteus does not simulate EEPROM write endurance. In physical deployment, write-minimization strategies are essential to remain within the AT24C256's 1,000,000 write cycle limit.
+4. **NVS Persistence:** Proteus does not simulate SPI flash NVS partition behaviour. EEPROM or RAM-backed storage models are used as functional equivalents to validate persistence logic within the simulation context.
 
 ### 10.4 Proteus Circuit Connections Summary
 
-#### ATmega328P Pin Assignments
+#### ESP32 GPIO Pin Assignments
 
 | Pin | Function | Connected To |
 |---|---|---|
-| A0 | ADC — Voltage Sensor | Voltage divider output |
-| A1 | ADC — Current Sensor | ACS712 output |
-| D2 | Digital Input — Keypad Row 1 | Keypad matrix |
-| D3 | Digital Input — Keypad Row 2 | Keypad matrix |
-| D4 | Digital Input — Keypad Row 3 | Keypad matrix |
-| D5 | Digital Input — Keypad Row 4 | Keypad matrix |
-| D6 | Digital Output — Keypad Col 1 | Keypad matrix |
-| D7 | Digital Output — Keypad Col 2 | Keypad matrix |
-| D8 | Digital Output — Keypad Col 3 | Keypad matrix |
-| D9 | Digital Output — Keypad Col 4 | Keypad matrix |
-| D10 | Digital Output — Relay Control | Relay module IN pin |
-| D11 (TX) | SoftwareSerial TX — GSM | SIM800L RX |
-| D12 (RX) | SoftwareSerial RX — GSM | SIM800L TX |
-| D13 (TX) | SoftwareSerial TX — Wi-Fi | ESP8266 RX |
-| A2 (RX) | SoftwareSerial RX — Wi-Fi | ESP8266 TX |
-| SDA (A4) | I2C Data | LCD, RTC, EEPROM (shared bus) |
-| SCL (A5) | I2C Clock | LCD, RTC, EEPROM (shared bus) |
+| GPIO16 (RX2) | UART2 RX - PZEM-004T | PZEM-004T TX |
+| GPIO17 (TX2) | UART2 TX - PZEM-004T | PZEM-004T RX |
+| GPIO4 | Digital Output - Relay Control | Relay module IN pin |
+| GPIO0 | Digital Input - Push Button | Push button with pull-up |
+| GPIO18 (SCK) | SPI Clock - TFT LCD | TFT CLK pin |
+| GPIO19 (MISO) | SPI MISO (not used for TFT write-only) | - |
+| GPIO23 (MOSI) | SPI Data - TFT LCD | TFT DIN/MOSI pin |
+| GPIO5 (CS) | SPI Chip Select - TFT LCD | TFT CS pin |
+| GPIO21 | TFT DC/RS (Data/Command) | TFT DC pin |
+| GPIO22 | TFT Reset | TFT RST pin |
+| GND | Ground | All component GND |
+| 3.3V / 5V | Power | Component VCC as required |
 
 ---
 
@@ -464,8 +434,9 @@ The following approximations are made in the Proteus environment due to simulati
 ### 11.1 Prerequisites
 
 - **Proteus Design Suite 8.x** (version 8.9 or later recommended)
-- **Arduino IDE 1.8.x or 2.x** (required only if recompiling the firmware)
-- Third-party Proteus models (if not built-in): Arduino Uno library for Proteus (import via Library Manager or manual `.LIB` file placement)
+- **Arduino IDE 2.x** with Espressif Arduino Core installed (required only if recompiling the firmware)
+- ESP32 board package: install via Arduino IDE Board Manager (`esp32` by Espressif Systems)
+- Third-party Proteus models (if not built-in): ESP32 Proteus library (available from community repositories)
 
 ### 11.2 Step-by-Step Simulation Procedure
 
@@ -475,40 +446,39 @@ The following approximations are made in the Proteus environment due to simulati
 3. The schematic will load with all components placed and wired.
 
 **Step 2 — Verify the HEX File Assignment**
-1. Double-click the Arduino Uno component in the schematic to open its properties.
+1. Double-click the ESP32 component in the schematic to open its properties.
 2. In the `Program File` field, ensure the path points to `proteus/SmartEnergyMeter.hex`.
-3. Set the `Clock Frequency` to `16MHz` to match the Arduino Uno hardware specification.
+3. Set the `Clock Frequency` to `240MHz` to match the ESP32 hardware specification.
 4. Click `OK` to confirm.
 
-**Step 3 — Configure the Virtual Terminals (GSM and Wi-Fi)**
+**Step 3 — Configure the Virtual Terminals (PZEM-004T and Wi-Fi)**
 1. Double-click each Virtual Terminal component and set `Baud Rate` to `9600`, `Data Bits` to `8`, `Parity` to `None`, `Stop Bits` to `1`.
-2. These terminals will display AT command traffic during simulation for GSM and Wi-Fi communication observation.
+2. These terminals will display UART/Modbus traffic (PZEM-004T) and Wi-Fi communication sequences during simulation.
 
 **Step 4 — Run the Simulation**
 1. Click the `Play` button (green triangle) in the Proteus toolbar or press `F12`.
 2. The simulation will initialize. The LCD should display the meter home screen after approximately 2 simulation seconds.
-3. Observe the displayed voltage, current, power, and credit balance values cycling on the LCD.
+3. Observe the displayed voltage, current, power, and credit balance values on the TFT LCD.
 
 **Step 5 — Simulate Token Recharge**
-1. Click on the keypad component to activate it.
-2. Enter a valid 20-digit token (refer to the token table in `docs/simulation-guide.md`).
-3. Press `#` to confirm.
-4. Observe the LCD transitioning to the recharge confirmation screen and the balance updating.
+1. Click on the push button component to simulate a button press and navigate to the recharge menu on the TFT LCD.
+2. Use repeated short presses to cycle token digit values and a long press to confirm each digit (refer to `docs/simulation-guide.md` for the button interaction model).
+3. Observe the TFT LCD transitioning to the recharge confirmation screen and the balance updating.
 
 **Step 6 — Simulate Credit Exhaustion**
 1. In the firmware source, reduce the initial credit balance constant to a small value (e.g., $0.10) and recompile.
 2. Reload the HEX file in the Proteus component properties.
 3. Run the simulation and observe the relay switching to open state and the LCD displaying a "POWER DISCONNECTED" message when credit reaches zero.
 
-**Step 7 — Observe GSM Output**
-1. With the simulation running, the Virtual Terminal assigned to the GSM module will display AT command sequences when a low-balance SMS alert is triggered.
+**Step 7 — Observe PZEM-004T Communication**
+1. With the simulation running, the Virtual Terminal assigned to the PZEM-004T module will display Modbus RTU request/response frames as the firmware polls for energy data.
 
 ### 11.3 Recompiling the Firmware
 
 If changes are made to the firmware source code:
 
 1. Open `firmware/SmartEnergyMeter.ino` in the Arduino IDE.
-2. Select `Tools > Board > Arduino Uno`.
+2. Select `Tools > Board > ESP32 Arduino > ESP32 Dev Module` (or your specific ESP32 board variant).
 3. Select `Tools > Port` (port selection is not required for HEX export).
 4. Navigate to `Sketch > Export Compiled Binary`.
 5. Locate the generated `SmartEnergyMeter.ino.hex` file in the `firmware/` directory.
@@ -525,12 +495,12 @@ Install the following libraries via the Arduino IDE Library Manager (`Sketch > I
 
 | Library Name | Version | Purpose |
 |---|---|---|
-| `LiquidCrystal I2C` | >= 1.1.2 | 16x2 LCD over I2C (PCF8574) |
-| `Keypad` | >= 3.1.1 | 4x4 matrix keypad scanning |
-| `RTClib` | >= 2.1.1 | DS3231/DS1307 RTC interface |
-| `Wire` | Built-in | I2C bus communication |
-| `EEPROM` | Built-in | Internal EEPROM read/write |
-| `SoftwareSerial` | Built-in | Secondary UART for GSM/Wi-Fi |
+| `TFT_eSPI` | >= 2.5.0 | 1.8" TFT LCD via SPI (ST7735/ILI9163 driver support) |
+| `PZEM-004T-v30` | >= 1.1.2 | PZEM-004T energy module UART/Modbus communication |
+| `WiFi` | Built-in (ESP32 Core) | ESP32 built-in Wi-Fi TCP/IP stack |
+| `HTTPClient` | Built-in (ESP32 Core) | HTTP GET/POST for IoT platform publishing |
+| `Preferences` | Built-in (ESP32 Core) | ESP32 NVS key-value persistent storage |
+| `HardwareSerial` | Built-in (ESP32 Core) | Hardware UART for PZEM-004T communication |
 
 ### 12.2 Configuration Constants
 
@@ -544,7 +514,10 @@ The following constants in `SmartEnergyMeter.ino` must be configured before comp
 #define INITIAL_BALANCE     2000.00f        // Default credit balance in Naira (₦) for demonstration
 #define LOW_BALANCE_THRESH  500.00f         // Low-balance alert threshold in Naira (₦)
 #define BILLING_INTERVAL_MS 1000            // Billing deduction interval in milliseconds
-#define CONSUMER_PHONE      "+2348012345678" // Registered consumer phone number (Nigerian format)
+#define PZEM_RX_PIN         16              // ESP32 GPIO pin for PZEM-004T UART RX
+#define PZEM_TX_PIN         17              // ESP32 GPIO pin for PZEM-004T UART TX
+#define RELAY_PIN           4               // ESP32 GPIO pin for relay control
+#define BUTTON_PIN          0               // ESP32 GPIO pin for push button input
 #define WIFI_SSID           "YourSSID"      // Wi-Fi network name
 #define WIFI_PASSWORD       "YourPassword"  // Wi-Fi password
 #define IOT_SERVER          "api.thingspeak.com" // IoT platform API endpoint
@@ -559,32 +532,31 @@ The following constants in `SmartEnergyMeter.ino` must be configured before comp
 
 ```mermaid
 flowchart TD
-    A([POWER ON]) --> B["Initialize peripherals\nLCD · Keypad · GSM · Wi-Fi · RTC · EEPROM"]
-    B --> C["Read stored credit balance\nand relay state from EEPROM"]
+    A([POWER ON]) --> B["Initialize peripherals\nTFT LCD · PZEM-004T · Wi-Fi · NVS · Relay"]
+    B --> C["Read stored credit balance\nand relay state from NVS"]
     C --> D[Restore relay to last known state]
     D --> ML([Main Loop])
 
-    ML --> F["Sample ADC: Voltage and Current"]
-    F --> G["Compute V_RMS, I_RMS, P_active, delta_kWh"]
+    ML --> F["Poll PZEM-004T via UART:\nRead V, I, P, kWh"]
+    F --> G["Extract delta_kWh from PZEM-004T energy reading"]
     G --> H["Deduct cost from credit balance\n(if relay ON)"]
-    H --> I["Write updated balance to EEPROM"]
+    H --> I["Write updated balance to NVS"]
     I --> J{Is balance <= 0?}
 
     J -->|YES| K["Open relay\nDisplay: CREDIT EXHAUSTED"]
     K --> ML
 
     J -->|NO| L{Is balance < LOW_BALANCE_THRESH?}
-    L -->|YES| M["Dispatch low-balance SMS alert\nDisplay warning on LCD"]
-    M --> N[Update LCD display]
+    L -->|YES| M["Publish low-balance alert to IoT platform\nDisplay warning on TFT LCD"]
+    M --> N[Update TFT LCD display]
     L -->|NO| N
 
-    N --> O[Poll keypad for token input]
-    O --> P[Poll GSM module for incoming SMS token]
-    P --> Q[Poll Wi-Fi module for IoT recharge command]
-    Q --> R{Publish interval elapsed?}
-    R -->|YES| S[Publish telemetry to IoT platform]
-    S --> ML
-    R -->|NO| ML
+    N --> O[Poll push button for recharge menu input]
+    O --> P[Poll Wi-Fi for IoT recharge command]
+    P --> Q{Publish interval elapsed?}
+    Q -->|YES| R[Publish telemetry to IoT platform]
+    R --> ML
+    Q -->|NO| ML
 ```
 
 ---
@@ -595,15 +567,15 @@ The following test scenarios are used to validate the system against its design 
 
 | Test ID | Scenario | Expected Outcome | Validation Method |
 |---|---|---|---|
-| TC-01 | Power-on with stored credit balance | LCD displays correct balance from EEPROM on startup | Visual inspection of LCD in Proteus |
-| TC-02 | Resistive load connected, meter running | V, I, P, and kWh values increase proportionally | Compare ADC readings against calculated values |
+| TC-01 | Power-on with stored credit balance | TFT LCD displays correct balance from NVS on startup | Visual inspection of TFT LCD in Proteus |
+| TC-02 | PZEM-004T providing energy readings via UART | V, I, P, and kWh values read and displayed correctly | Compare PZEM-004T Virtual Terminal output against displayed TFT values |
 | TC-03 | Credit balance decrements over time | Balance decreases at the rate: tariff × power / 3,600,000 per ms | Plot balance vs. time in Proteus graph tool |
-| TC-04 | Valid token entered via keypad | Balance increases by the token's credit value; relay closes if previously open | Visual inspection of LCD and relay state indicator |
-| TC-05 | Invalid token entered | LCD displays "INVALID TOKEN" error; balance unchanged | Visual inspection |
-| TC-06 | Already-used token re-entered | LCD displays "TOKEN ALREADY USED"; balance unchanged | EEPROM log verification |
-| TC-07 | Balance reaches zero | Relay opens; LCD displays "CREDIT EXHAUSTED"; load lamp extinguishes | Relay component state in Proteus |
-| TC-08 | Low-balance threshold crossed | AT command sent to GSM Virtual Terminal: `AT+CMGS` with alert message | Virtual Terminal output in Proteus |
-| TC-09 | Power cycle during active session | Balance and relay state restore correctly from EEPROM on restart | Stop and restart simulation; verify LCD values |
+| TC-04 | Valid token entered via push button menu | Balance increases by the token's credit value; relay closes if previously open | Visual inspection of TFT LCD and relay state indicator |
+| TC-05 | Invalid token entered | TFT LCD displays "INVALID TOKEN" error; balance unchanged | Visual inspection |
+| TC-06 | Already-used token re-entered | TFT LCD displays "TOKEN ALREADY USED"; balance unchanged | NVS token log verification |
+| TC-07 | Balance reaches zero | Relay opens; TFT LCD displays "CREDIT EXHAUSTED"; load lamp extinguishes | Relay component state in Proteus |
+| TC-08 | Low-balance threshold crossed | Wi-Fi Virtual Terminal shows HTTP publish request with low-balance flag | Virtual Terminal output in Proteus |
+| TC-09 | Power cycle during active session | Balance and relay state restore correctly from NVS on restart | Stop and restart simulation; verify TFT LCD values |
 | TC-10 | IoT telemetry publish interval | Wi-Fi Virtual Terminal shows HTTP request string at correct interval | Virtual Terminal output and oscilloscope probe in Proteus |
 
 ---
@@ -612,18 +584,18 @@ The following test scenarios are used to validate the system against its design 
 
 ### 15.1 Current Limitations
 
-- **Simulation Fidelity:** Proteus does not simulate RF communication for GSM/Wi-Fi modules. Full end-to-end IoT data flow requires physical hardware deployment.
+- **Simulation Fidelity:** Proteus does not simulate RF communication for the ESP32 built-in Wi-Fi module. Full end-to-end IoT data flow requires physical hardware deployment.
 - **STS Cryptography:** The full DKGA04 token generation and validation algorithm (as specified in IEC 62055-41) is not implemented due to its computational complexity in the simulation scope. A simplified lookup-based model is used.
-- **Power Factor:** The current implementation assumes a unity power factor (purely resistive load). Reactive loads (motors, capacitive loads) would require phase-angle measurement hardware (e.g., ADE7758 energy metering IC) for accurate real power computation.
+- **Power Factor:** The PZEM-004T module reports power factor in addition to active power, enabling more accurate real power billing than ADC-only approaches. However, highly non-linear loads (variable speed drives, switched-mode power supplies) may require dedicated power quality analysis beyond the PZEM-004T's measurement range.
 - **Tamper Detection:** Physical tampering countermeasures (optical sensors, magnetic field detectors) cannot be evaluated in simulation.
 
 ### 15.2 Recommended Future Enhancements
 
-1. **Dedicated Energy Metering IC:** Replace the ACS712 and voltage divider combination with the ADE7758 or CS5463 IC for hardware-level accurate RMS computation, power factor correction, and harmonic analysis.
+1. **Dedicated Energy Metering IC Upgrade:** Consider replacing the PZEM-004T module with a dedicated energy metering IC such as the ADE7758 or CS5463 for tighter integration with the ESP32 and hardware-level harmonic analysis capability.
 2. **Full STS Compliance:** Implement the complete STS IEC 62055-41 DKGA04 cryptographic token generation and validation algorithm.
 3. **MQTT Protocol:** Replace HTTP polling with MQTT publish-subscribe for lower-latency, lower-bandwidth IoT communication.
-4. **Over-the-Air (OTA) Firmware Update:** Leverage the ESP8266's OTA capability to enable remote firmware updates without physical access to the device.
-5. **TFT Touchscreen Interface:** Replace the 16x2 character LCD with a TFT touchscreen display for a richer consumer-facing interface.
+4. **Over-the-Air (OTA) Firmware Update:** Leverage the ESP32's built-in OTA capability (via `ArduinoOTA` or ESP-IDF OTA) to enable remote firmware updates without physical access to the device.
+5. **TFT Touchscreen Interface:** Replace the push button with a capacitive touch TFT display for a richer and more intuitive consumer-facing interface.
 6. **Physical PCB Design:** Translate the validated Proteus schematic to a manufacturable PCB layout using the Proteus ARES PCB design module.
 7. **Tamper-Evident Enclosure:** Design an IP54-rated enclosure with anti-tamper seals for physical deployment in outdoor environments.
 
@@ -632,17 +604,14 @@ The following test scenarios are used to validate the system against its design 
 ## 16. References
 
 1. International Electrotechnical Commission. (2014). *IEC 62055-41: Electricity Metering — Payment Systems — Standard Transfer Specification (STS) — Part 41: Application Layer Protocol for One-Way Token Carrier Systems.* IEC.
-2. Atmel Corporation. (2016). *ATmega328P 8-bit AVR Microcontroller Datasheet.* Microchip Technology Inc.
-3. Allegro MicroSystems. (2023). *ACS712 Fully Integrated, Hall Effect-Based Linear Current Sensor Datasheet.* Allegro MicroSystems.
-4. Maxim Integrated / Analog Devices. (2015). *DS3231 Extremely Accurate I2C-Integrated RTC/TCXO/Crystal Datasheet.* Analog Devices.
-5. Simcom. (2020). *SIM800L Hardware Design V1.00.* Simcom Wireless Solutions.
-6. Espressif Systems. (2023). *ESP8266 Technical Reference.* Espressif Systems.
-7. Labcenter Electronics. (2022). *Proteus Design Suite Professional — User Manual v8.15.* Labcenter Electronics Ltd.
-8. Amin, M., & Wollenberg, B. F. (2005). Toward a Smart Grid: Power Delivery for the 21st Century. *IEEE Power and Energy Magazine*, 3(5), 34–41.
-9. Depuru, S. S. S. R., Wang, L., & Devabhaktuni, V. (2011). Smart Meters for Power Grid: Challenges, Issues, Advantages and Status. *Renewable and Sustainable Energy Reviews*, 15(6), 2736–2742.
-10. Nigerian Electricity Regulatory Commission (NERC). (2022). *Multi-Year Tariff Order (MYTO) 2.1 — Minimum Remittable Tariff and Band Classification.* NERC, Abuja, Nigeria.
-11. Federal Ministry of Power, Nigeria. (2021). *National Mass Metering Programme (NMMP) — Phase 0 Report.* Federal Government of Nigeria.
-12. Iwayemi, A. (2008). Nigeria's Dual Energy Problems: Policy Issues and Challenges. *International Association for Energy Economics Newsletter*, 17(4), 17–21.
+2. Espressif Systems. (2023). *ESP32 Technical Reference Manual* (Version 5.0). Espressif Systems.
+3. PEACEFAIR. (2022). *PZEM-004T Power Energy Meter Module: User Manual and Communication Protocol.* PEACEFAIR Electronic.
+4. Labcenter Electronics. (2022). *Proteus Design Suite Professional — User Manual v8.15.* Labcenter Electronics Ltd.
+5. Amin, M., & Wollenberg, B. F. (2005). Toward a Smart Grid: Power Delivery for the 21st Century. *IEEE Power and Energy Magazine*, 3(5), 34–41.
+6. Depuru, S. S. S. R., Wang, L., & Devabhaktuni, V. (2011). Smart Meters for Power Grid: Challenges, Issues, Advantages and Status. *Renewable and Sustainable Energy Reviews*, 15(6), 2736–2742.
+7. Nigerian Electricity Regulatory Commission (NERC). (2022). *Multi-Year Tariff Order (MYTO) 2.1 — Minimum Remittable Tariff and Band Classification.* NERC, Abuja, Nigeria.
+8. Federal Ministry of Power, Nigeria. (2021). *National Mass Metering Programme (NMMP) — Phase 0 Report.* Federal Government of Nigeria.
+9. Iwayemi, A. (2008). Nigeria's Dual Energy Problems: Policy Issues and Challenges. *International Association for Energy Economics Newsletter*, 17(4), 17–21.
 
 ---
 
