@@ -9,6 +9,7 @@ Iot-Based-Smart-Prepaid-Energy-Meter-Proteus/
 │
 ├── README.md                          # Project overview, setup guide, and simulation instructions
 ├── FILE-STRUCTURE.md                  # This document - annotated project directory layout
+├── GET-STARTED.md                     # Pre-coding setup guide: toolchain, libraries, Proteus, IoT platform, and verification
 │
 ├── proteus/                           # All Proteus simulation design files
 │   ├── SmartEnergyMeter.pdsprj        # Proteus 8 project file (opens the full simulation environment)
