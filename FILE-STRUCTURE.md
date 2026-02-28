@@ -19,9 +19,9 @@ Iot-Based-Smart-Prepaid-Energy-Meter-Proteus/
 ├── firmware/                          # Embedded C / Arduino source code for the microcontroller
 │   ├── SmartEnergyMeter.ino           # Arduino IDE entry point (setup() and loop())
 │   │
-│   ├── src/                           # Modular source files — one module per peripheral/subsystem
-│   │   ├── energy_measurement.h       # Header: energy data declarations (voltage, current, power, kWh from PZEM-004T)
-│   │   ├── energy_measurement.cpp     # Implementation: PZEM-004T UART/Modbus polling and energy data extraction
+│   ├── src/                           # Modular source files, one module per peripheral/subsystem
+│   │   ├── pzem_module.h              # Header: energy data declarations (voltage, current, power, kWh from PZEM-004T)
+│   │   ├── pzem_module.cpp            # Implementation: PZEM-004T UART/Modbus polling and energy data extraction
 │   │   │
 │   │   ├── billing.h                  # Header: prepaid credit management declarations
 │   │   ├── billing.cpp                # Implementation: credit deduction logic, tariff rates, low-balance alerts
@@ -41,8 +41,8 @@ Iot-Based-Smart-Prepaid-Energy-Meter-Proteus/
 │   │   ├── nvs_storage.h              # Header: non-volatile data storage declarations (ESP32 Preferences)
 │   │   ├── nvs_storage.cpp            # Implementation: read/write credit balance and consumption logs to ESP32 NVS
 │   │   │
-│   │   └── token_validator.h          # Header: STS (Standard Transfer Specification) token validation
-│   │       token_validator.cpp        # Implementation: token decryption, one-time-use enforcement
+│   │   ├── token_validator.h          # Header: STS (Standard Transfer Specification) token validation
+│   │   └── token_validator.cpp        # Implementation: token decryption, one-time-use enforcement
 │   │
 │   └── lib/                           # Third-party Arduino libraries used in this project
 │       ├── TFT_eSPI/                  # TFT LCD driver library (ST7735/ILI9163 via SPI)
@@ -65,15 +65,19 @@ Iot-Based-Smart-Prepaid-Energy-Meter-Proteus/
 │       ├── billing-logic-flow.png     # Credit deduction and relay cutoff flowchart
 │       └── token-recharge-flow.png    # Token entry, validation, and credit update flowchart
 │
-└── assets/                            # Supplementary media and reference assets
-    ├── simulation-screenshots/        # Captured screenshots of the running Proteus simulation
-    │   ├── normal-operation.png       # Meter displaying live readings under normal load
-    │   ├── low-credit-alert.png       # LCD showing low-balance warning state
-    │   ├── power-cutoff.png           # Relay open state on zero credit
-    │   └── token-recharge.png         # Successful token entry and credit update
-    └── datasheets/                    # Component datasheets for reference
-        ├── PZEM-004T-datasheet.pdf    # Energy measurement module datasheet and Modbus protocol guide
-        └── ESP32-datasheet.pdf        # ESP32 SoC technical reference and datasheet
+├── assets/                            # Supplementary media and reference assets
+│   ├── simulation-screenshots/        # Captured screenshots of the running Proteus simulation
+│   │   ├── normal-operation.png       # Meter displaying live readings under normal load
+│   │   ├── low-credit-alert.png       # TFT LCD showing low-balance warning state
+│   │   ├── power-cutoff.png           # Relay open state on zero credit
+│   │   └── token-recharge.png         # Successful token entry and credit update
+│   └── datasheets/                    # Component datasheets for reference
+│       ├── PZEM-004T-datasheet.pdf    # Energy measurement module datasheet and Modbus protocol guide
+│       └── ESP32-datasheet.pdf        # ESP32 SoC technical reference and datasheet
+│
+└── documentation/                     # Academic chapter documents (FUTO SOE 2024 format)
+    ├── CHAPTER_ONE.md                 # Chapter One: Introduction, background, problem statement, objectives, and scope
+    └── CHAPTER ONE.docx               # Chapter One: Word document source file
 ```
 
 ---
@@ -95,6 +99,9 @@ Exported static images of all circuit diagrams and system flowcharts. These are 
 ### `assets/`
 Contains simulation screenshots demonstrating key system states and component datasheets used as hardware references during design.
 
+### `documentation/`
+Contains formal academic chapter documents produced for the FUTO SOE undergraduate project submission. Chapter One covers the introduction, background, problem statement, objectives, scope, limitations, significance, and definitions of terms in accordance with the FUTO SOE 2024 format. Both the Markdown source (`CHAPTER_ONE.md`) and the Word document source (`CHAPTER ONE.docx`) are maintained here.
+
 ---
 
 ## Key File Dependencies
@@ -104,5 +111,5 @@ Contains simulation screenshots demonstrating key system states and component da
 | `proteus/SmartEnergyMeter.pdsprj` | `proteus/SmartEnergyMeter.dsn`, `proteus/SmartEnergyMeter.hex` |
 | `proteus/SmartEnergyMeter.hex` | All files under `firmware/src/` (compiled via Arduino IDE + Espressif Core) |
 | `firmware/SmartEnergyMeter.ino` | All module headers in `firmware/src/` |
-| `firmware/src/billing.cpp` | `energy_measurement.h`, `nvs_storage.h`, `relay_control.h` |
+| `firmware/src/billing.cpp` | `pzem_module.h`, `nvs_storage.h`, `relay_control.h` |
 | `firmware/src/wifi_module.cpp` | `billing.h`, `token_validator.h` |
