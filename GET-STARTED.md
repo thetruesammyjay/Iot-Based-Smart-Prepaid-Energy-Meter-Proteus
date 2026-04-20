@@ -13,12 +13,11 @@ This guide walks you through every setup step required before you begin writing 
 3. [Install the Espressif ESP32 Board Package](#3-install-the-espressif-esp32-board-package)
 4. [Install Required Libraries](#4-install-required-libraries)
 5. [Configure TFT_eSPI for This Project](#5-configure-tft_espi-for-this-project)
-6. [Install Proteus Design Suite 8](#6-install-proteus-design-suite-8)
-7. [Import the ESP32 Proteus Model](#7-import-the-esp32-proteus-model)
-8. [Set Up Your IoT Platform Account](#8-set-up-your-iot-platform-account)
-9. [Configure Project Constants](#9-configure-project-constants)
-10. [Verify the Toolchain Compiles](#10-verify-the-toolchain-compiles)
-11. [Pre-Coding Checklist](#11-pre-coding-checklist)
+6. [Set Up Wokwi for ESP32 Firmware Validation](#6-set-up-wokwi-for-esp32-firmware-validation)
+7. [Set Up Your IoT Platform Account](#7-set-up-your-iot-platform-account)
+8. [Configure Project Constants](#8-configure-project-constants)
+9. [Verify the Toolchain Compiles](#9-verify-the-toolchain-compiles)
+10. [Pre-Coding Checklist](#10-pre-coding-checklist)
 
 ---
 
@@ -39,7 +38,7 @@ Confirm you have all physical components before starting. These are also listed 
 | 9 | USB Cable | Micro-USB or USB-C matching your ESP32 board | 1 |
 | 10 | 5V DC Power Supply | USB power bank or bench supply | 1 |
 
-> The physical hardware is only needed for physical prototyping. For the Proteus simulation phase (which comes first), you only need a PC with the software listed below.
+> The physical hardware is only needed for bench prototyping. For the Wokwi validation phase (which comes first), you only need a PC, a modern web browser, and the software listed below.
 
 ---
 
@@ -168,49 +167,22 @@ Save `User_Setup.h`. These settings will be compiled into every sketch that incl
 
 ---
 
-## 6. Install Proteus Design Suite 8
+## 6. Set Up Wokwi for ESP32 Firmware Validation
 
-Proteus is the primary simulation environment for this project. All firmware testing is done in Proteus before any physical hardware is used.
+Wokwi is the primary firmware validation environment for this project. It is used to check control logic, relay switching, display updates, button handling, and mocked serial input before the physical prototype is tested.
 
-1. Obtain a licensed copy of **Proteus Design Suite 8** (version 8.9 or later recommended).
-2. Run the installer and complete the installation with default component libraries included.
-3. Launch Proteus and confirm it opens to the home screen.
-4. Verify the following component libraries are available by opening `Library > Pick Devices` and searching for each:
-   - `BUTTON` (in ACTIVE library)
-   - `RELAY` (in ACTIVE library)
-   - `VSINE` (in Generators)
-   - `VIRTUAL TERMINAL` (in Virtual Instruments)
+1. Go to [https://wokwi.com](https://wokwi.com) and sign in or create a free account.
+2. Create a new ESP32 project and confirm the board type is an ESP32 DevKit variant.
+3. Add the project files from the `wokwi/` folder in this repository, or recreate the equivalent wiring in the Wokwi editor.
+4. Connect the simulated push button, relay output, TFT display pins, and serial input used for the PZEM data stream.
+5. Use the serial monitor to inject mocked PZEM frames and confirm that the firmware parses voltage, current, power, and energy values correctly.
+6. Run the sketch and confirm the home screen, low-balance warning, recharge flow, and load cutoff behaviour.
 
----
-
-## 7. Import the ESP32 Proteus Model
-
-The ESP32 is not included in the default Proteus library and must be added manually.
-
-### Download the Model
-
-Download a community ESP32 Proteus model. A widely-used source is the **Proteus ESP32 library** available from GitHub. Search for:
-
-```
-ESP32 Proteus library site:github.com
-```
-
-Look for a repository that provides a `.LIB` and `.IDX` file pair (e.g., `ESP32.LIB` + `ESP32.IDX`).
-
-### Install the Model
-
-1. Copy the downloaded `.LIB` and `.IDX` files into your Proteus library folder:
-   ```
-   C:\ProgramData\Labcenter Electronics\Proteus 8 Professional\LIBRARY\
-   ```
-2. Restart Proteus.
-3. Open `Library > Pick Devices`, search for `ESP32`, and confirm the component appears.
-
-> If you cannot find a suitable ESP32 model, a generic 32-bit MCU component with the correct number of UART/SPI/GPIO pins can be used as a placeholder. The HEX file is loaded into whichever MCU component is placed in the schematic.
+> Wokwi is ideal for validating firmware logic, but it does not replace final bench testing with the real PZEM-004T module and AC load.
 
 ---
 
-## 8. Set Up Your IoT Platform Account
+## 7. Set Up Your IoT Platform Account
 
 The firmware publishes energy data to an IoT cloud platform over Wi-Fi. Set up your account before coding so you have the API key ready for the configuration step.
 
@@ -238,7 +210,7 @@ Any platform that accepts HTTP POST or MQTT publish is compatible. Adapt the `wi
 
 ---
 
-## 9. Configure Project Constants
+## 8. Configure Project Constants
 
 Before writing any module code, open `firmware/SmartEnergyMeter.ino` and fill in your specific values for all project constants. These drive the behaviour of every module.
 
@@ -274,7 +246,7 @@ Before writing any module code, open `firmware/SmartEnergyMeter.ino` and fill in
 
 ---
 
-## 10. Verify the Toolchain Compiles
+## 9. Verify the Toolchain Compiles
 
 Before writing any project code, confirm that your toolchain is working end-to-end by compiling a minimal test sketch.
 
@@ -350,7 +322,7 @@ void loop() {}
 
 ---
 
-## 11. Pre-Coding Checklist
+## 10. Pre-Coding Checklist
 
 Run through this checklist once before opening `firmware/SmartEnergyMeter.ino` to start coding:
 
@@ -362,8 +334,8 @@ Run through this checklist once before opening `firmware/SmartEnergyMeter.ino` t
 - [ ] `User_Setup.h` edited: correct TFT driver selected (`ST7735_DRIVER` or `ILI9163_DRIVER`)
 - [ ] `User_Setup.h` edited: all six TFT GPIO pin defines set (`TFT_MOSI`, `TFT_SCLK`, `TFT_CS`, `TFT_DC`, `TFT_RST`)
 - [ ] All three toolchain verification test sketches compile without errors
-- [ ] Proteus Design Suite 8 installed and launches successfully
-- [ ] ESP32 Proteus model imported and visible in Pick Devices
+- [ ] Wokwi account created and a new ESP32 project opened
+- [ ] Wokwi wiring matches the project pin map or the `wokwi/` folder files
 - [ ] ThingSpeak (or alternative) channel created with 6 fields configured
 - [ ] ThingSpeak Write API Key copied and ready
 - [ ] `firmware/SmartEnergyMeter.ino` constants filled in: `METER_ID`, `TARIFF_RATE`, `WIFI_SSID`, `WIFI_PASSWORD`, `IOT_API_KEY`

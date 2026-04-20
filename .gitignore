@@ -1,0 +1,51 @@
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# VS Code / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.iml
+
+# Python virtual environments and caches
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Arduino / embedded build outputs
+firmware/build/
+firmware/.arduinoIDE/
+firmware/.pio/
+firmware/.cache/
+*.elf
+*.map
+*.o
+*.a
+*.d
+*.lst
+*.log
+
+# Proteus and Office temporary files
+*.bak
+*.tmp
+*.old
+~$*
+~WRL*.tmp
+
+# Documentation and generated files
+*.docx
+*.xlsx
+*.pptx
